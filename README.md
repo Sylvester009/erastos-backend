@@ -1,45 +1,70 @@
 # Erastos Backend
 
-A Go REST API for managing books in a library. The HTTP server uses Gin.
+A Go REST API for managing books in a library. It uses Gin for HTTP routing
+and pgx to connect to PostgreSQL.
+
+## Current progress
+
+Implemented:
+
+- Book endpoints for listing, retrieving, adding, replacing, and deleting books.
+- A `Book` model with authors, optional bibliographic fields, add mode
+  (`MANUAL`, `SCAN`, or `SEARCH`), and bookshelf ID.
+- Six sample books in `data/books.go`.
+- PostgreSQL connection configuration and a startup connection/ping.
+- SQL up/down migration files for creating and dropping the `books` table.
+- Air configuration for optional live reload.
+
+**Important:** The API handlers still read and modify the in-memory
+`data.Books` slice. They do not yet read from or write to PostgreSQL. The
+database connection is currently established at startup, but the books
+migration is not automatically applied by the app. API changes are lost when
+the process stops.
+
+The `bookshelf_id` column is not yet a foreign key because a bookshelves table
+has not been defined.
 
 ## Project structure
 
 ```text
 .
-├── cmd/
-│   └── api/
-│       └── main.go              # Application entry point
-├── data/
-│   └── books.go                 # In-memory sample book data
+├── cmd/api/main.go                         # Application entry point
+├── data/books.go                           # In-memory sample book data
 ├── internal/
-│   └── api/
-│       ├── book_handlers.go     # Book request handlers
-│       └── router.go            # Gin router and route registration
-├── type/
-│   └── book.go                  # Book data model
-├── .air.toml                   # Air live-reload configuration
+│   ├── api/
+│   │   ├── book_handlers.go                # HTTP handlers
+│   │   └── router.go                       # Gin router and route registration
+│   ├── config/config.go                    # Reads environment configuration
+│   └── database/postgres.go                # Creates and pings pgx connection pool
+├── migrations/
+│   ├── 000001_create_books_table.up.sql    # Creates books table
+│   └── 000001_create_books_table.down.sql  # Drops books table
+├── type/book.go                            # Book model
+├── .air.toml                               # Air live-reload configuration
 ├── go.mod
 └── go.sum
 ```
 
-## Current progress
-
-The API currently supports:
-
-- Listing all books and retrieving one book by its string ID.
-- Adding a book, replacing a book, and deleting a book.
-- Six sample books loaded from `data/books.go`.
-- A `Book` model with authors, optional bibliographic fields, an add mode
-  (`MANUAL`, `SCAN`, or `SEARCH`), and a bookshelf ID.
-
-The books are stored in memory only. Changes made through the API are lost when
-the server stops. Persistent database storage and bookshelf relationship
-enforcement are not implemented yet.
-
 ## Requirements
 
 - Go 1.27.3 or compatible, as specified in `go.mod`.
+- A reachable PostgreSQL database.
 - Network access on the first run so Go can download dependencies.
+
+## Configuration
+
+The application loads a `.env` file from the current working directory. Create
+one in the project root with:
+
+```dotenv
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+PORT=8080
+```
+
+Replace the placeholders with your database connection details. Keep `.env`
+and all real credentials private; do not commit them to source control.
+`DATABASE_URL` is used to establish and ping the PostgreSQL connection.
+`PORT` sets the HTTP server port.
 
 ## Run the API
 
@@ -49,7 +74,7 @@ From the project root:
 go run ./cmd/api
 ```
 
-The server listens at `http://localhost:8080`.
+The server listens at `http://localhost:8080` when `PORT=8080`.
 
 To build the API:
 
@@ -59,12 +84,24 @@ go build ./cmd/api
 
 ### Live reload
 
-The repository includes an `.air.toml` configuration for [Air](https://github.com/air-verse/air).
-After installing Air, run this from the project root:
+The repository includes an `.air.toml` configuration for
+[Air](https://github.com/air-verse/air). Install Air, then run from the project
+root:
 
 ```bash
 air
 ```
+
+## Database migration
+
+The migration files define the schema, but the application does not run them
+automatically. Apply `migrations/000001_create_books_table.up.sql` to your
+PostgreSQL database using your preferred migration tool or SQL client. To
+reverse it, apply `migrations/000001_create_books_table.down.sql`.
+
+The table stores authors in a PostgreSQL `TEXT[]`. `created_at` and
+`updated_at` default to the current timestamp when a row is inserted; updating
+`updated_at` on later edits still needs application logic or a database trigger.
 
 ## API endpoints
 

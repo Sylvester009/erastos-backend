@@ -1,0 +1,16 @@
+CREATE TABLE books (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    authors TEXT[] NOT NULL,
+    cover_url TEXT,
+    description TEXT,
+    page_count INTEGER,
+    published_date TEXT,
+    publisher TEXT,
+    isbn TEXT,
+    add_mode TEXT NOT NULL CHECK (add_mode IN ('MANUAL', 'SCAN', 'SEARCH')),
+    volume_id TEXT,
+    bookshelf_id INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
