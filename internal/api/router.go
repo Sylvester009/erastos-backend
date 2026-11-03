@@ -1,8 +1,8 @@
-package main
+package api
 
 import "github.com/gin-gonic/gin"
 
-func bookRouter() *gin.Engine {
+func BookRouter() *gin.Engine {
 	router := gin.Default()
 	router.GET("/books", getBooks)
 	router.GET("/books/:id", getBookByID)
