@@ -8,7 +8,7 @@ PostgreSQL for persistent book storage through pgx.
 - Book list, detail, create, update, and delete endpoints are implemented.
 - API handlers use the PostgreSQL repository; they do not read or write the
   in-memory sample slice in `data/books.go`.
-- The book table migration defines an integer identity ID, book metadata,
+- The book table uses UUID IDs and stores book metadata,
   bookshelf ID, and creation/update timestamps.
 - Database configuration is loaded from `.env`, and the application verifies
   the database connection at startup.
@@ -32,8 +32,9 @@ implemented in the current model or API.
 │   ├── models/book.go                      # Book model
 │   └── repository/book_repository.go       # PostgreSQL queries
 ├── migrations/
-│   ├── 000001_create_books_table.up.sql    # Creates books table
-│   └── 000001_create_books_table.down.sql  # Drops books table
+│   ├── 000001_create_books_table.*.sql     # Creates/drops books table
+│   ├── 000002_create_user_table.*.sql      # Creates/drops users table
+│   └── 000003_convert_book_ids_to_uuid.*.sql # Converts existing IDs to UUIDs
 ├── .air.toml                               # Air live-reload configuration
 ├── go.mod
 └── go.sum
@@ -80,6 +81,9 @@ If migration `000001` was already applied before its SQL file changed, the
 migration tool will not reapply the edited file. Use a new forward migration
 or update the database schema explicitly.
 
+Migration `000003` preserves existing book rows while assigning new UUIDs.
+Existing numeric book IDs will change when it is applied.
+
 ## Run the API
 
 From the project root:
@@ -102,7 +106,7 @@ For live reload, install [Air](https://github.com/air-verse/air) and run
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/books` | List books |
-| `GET` | `/books/:id` | Retrieve a book by integer ID |
+| `GET` | `/books/:id` | Retrieve a book by UUID |
 | `POST` | `/books` | Create a book |
 | `PUT` | `/books/:id` | Replace a book |
 | `DELETE` | `/books/:id` | Delete a book |

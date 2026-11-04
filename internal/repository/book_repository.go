@@ -101,7 +101,7 @@ func GetBooks(pool *pgxpool.Pool) ([]models.Book, error) {
 	return books, nil
 }
 
-func GetBookByID(pool *pgxpool.Pool, id int) (*models.Book, error) {
+func GetBookByID(pool *pgxpool.Pool, id string) (*models.Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -154,7 +154,7 @@ func UpdateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 	return &updatedBook, nil
 }
 
-func DeleteBook(pool *pgxpool.Pool, id int) (bool, error) {
+func DeleteBook(pool *pgxpool.Pool, id string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

@@ -28,6 +28,7 @@ func main() {
 
 	router := api.BookRouter(pool)
 	router.SetTrustedProxies(nil)
+	
 	if err := router.Run("localhost:" + cfg.Port); err != nil {
 		log.Fatal("Error running server: ", err)
 	}

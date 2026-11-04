@@ -3,7 +3,6 @@ package handlers
 import (
 	"log"
 	"net/http"
-	"strconv"
 
 	"erastos-backend/internal/models"
 	"erastos-backend/internal/repository"
@@ -12,6 +11,20 @@ import (
 )
 
 type CreateBookRequest struct {
+	Title         string   `json:"title" binding:"required"`
+	Authors       []string `json:"authors" binding:"required,min=1"`
+	CoverURL      *string  `json:"cover_url"`
+	Description   *string  `json:"description"`
+	PageCount     *int     `json:"page_count"`
+	PublishedDate *string  `json:"published_date"`
+	Publisher     *string  `json:"publisher"`
+	ISBN          *string  `json:"isbn"`
+	AddMode       string   `json:"add_mode" binding:"required,oneof=MANUAL SCAN SEARCH"`
+	VolumeID      *string  `json:"volume_id"`
+	BookshelfID   int      `json:"bookshelf_id" binding:"required,gt=0"`
+}
+
+type UpdateBookRequest struct {
 	Title         string   `json:"title" binding:"required"`
 	Authors       []string `json:"authors" binding:"required,min=1"`
 	CoverURL      *string  `json:"cover_url"`
@@ -94,7 +107,7 @@ func UpdateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		var request CreateBookRequest
+		var request UpdateBookRequest
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "invalid book data"})
 			return
@@ -114,15 +127,23 @@ func UpdateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			BookshelfID:   request.BookshelfID,
 		}
 
+		if updatedBook.Title == "" && updatedBook.Authors == nil {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "At least one of the fields must be provided for update"})
+			return
+		}
+
 		book, err := repository.UpdateBook(pool, updatedBook)
+
 		if err != nil {
 			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "failed to update book"})
 			return
 		}
+
 		if book == nil {
 			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
 			return
 		}
+
 		c.IndentedJSON(http.StatusOK, book)
 	}
 }
@@ -143,15 +164,16 @@ func DeleteBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
 			return
 		}
-		c.Status(http.StatusNoContent)
+
+		c.IndentedJSON(http.StatusNoContent, gin.H{"message": "book deleted successfully"})
 	}
 }
 
-func parseBookID(c *gin.Context) (int, bool) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil || id < 1 {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "book ID must be a positive integer"})
-		return 0, false
+func parseBookID(c *gin.Context) (string, bool) {
+	id := c.Param("id")
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "book ID is required"})
+		return "", false
 	}
 	return id, true
 }
