@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"erastos-backend/internal/api"
 	"erastos-backend/internal/config"
@@ -19,8 +18,7 @@ func main() {
 		log.Fatal("Error loading configuration: ", err)
 	}
 
-	var pool *pgxpool.Pool
-	pool, err = database.Connect(cfg.DatabaseURL)
+	pool, err := database.Connect(cfg.DatabaseURL)
 
 	if err != nil {
 		log.Fatal("Error connecting to the database: ", err)
@@ -28,7 +26,9 @@ func main() {
 
 	defer pool.Close()
 
-	router := api.BookRouter()
+	router := api.BookRouter(pool)
 	router.SetTrustedProxies(nil)
-	router.Run("localhost:" + cfg.Port)
+	if err := router.Run("localhost:" + cfg.Port); err != nil {
+		log.Fatal("Error running server: ", err)
+	}
 }

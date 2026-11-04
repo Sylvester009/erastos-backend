@@ -1,13 +1,18 @@
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"erastos-backend/internal/handlers"
 
-func BookRouter() *gin.Engine {
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func BookRouter(pool *pgxpool.Pool) *gin.Engine {
 	router := gin.Default()
-	router.GET("/books", getBooks)
-	router.GET("/books/:id", getBookByID)
-	router.POST("/books", postBooks)
-	router.PUT("/books/:id", updateBook)
-	router.DELETE("/books/:id", deleteBook)
+	router.GET("/books", handlers.GetBooksHandler(pool))
+	router.GET("/books/:id", handlers.GetBookByIDHandler(pool))
+	router.POST("/books", handlers.CreateBookHandler(pool))
+	router.PUT("/books/:id", handlers.UpdateBookHandler(pool))
+	router.DELETE("/books/:id", handlers.DeleteBookHandler(pool))
 	return router
 }
