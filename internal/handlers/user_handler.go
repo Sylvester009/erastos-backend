@@ -125,3 +125,28 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		c.IndentedJSON(http.StatusOK, LoginResponse{Token: tokenString})
 	}
 }
+
+func GetUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+
+		if !exists {
+			c.IndentedJSON(http.StatusUnauthorized, gin.H{"message": "user_id not found in context"})
+			return
+		}
+
+		user, err := repository.GetUserByID(pool, userID.(string))
+
+		if err != nil {
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "error retrieving user " + err.Error()})
+			return
+		}
+
+		if user == nil {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "user not found"})
+			return
+		}
+
+		c.IndentedJSON(http.StatusOK, user)
+	}
+}

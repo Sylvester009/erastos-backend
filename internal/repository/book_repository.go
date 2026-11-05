@@ -13,7 +13,7 @@ import (
 
 const bookColumns = `
 	id, title, authors, cover_url, description, page_count, published_date,
-	publisher, isbn, add_mode, volume_id, bookshelf_id, created_at,
+	publisher, isbn, add_mode, volume_id, bookshelf_id, user_id, created_at,
 	updated_at
 `
 
@@ -36,6 +36,7 @@ func scanBook(row rowScanner) (models.Book, error) {
 		&book.AddMode,
 		&book.VolumeID,
 		&book.BookshelfID,
+		&book.UserID,
 		&book.CreatedAt,
 		&book.UpdatedAt,
 	)
@@ -49,9 +50,9 @@ func CreateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 	const query = `
 		INSERT INTO books (
 			title, authors, cover_url, description, page_count, published_date,
-			publisher, isbn, add_mode, volume_id, bookshelf_id, created_at, updated_at
+			publisher, isbn, add_mode, volume_id, bookshelf_id, user_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING ` + bookColumns
 
 	createdBook, err := scanBook(pool.QueryRow(ctx, query,
@@ -66,8 +67,7 @@ func CreateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 		book.AddMode,
 		book.VolumeID,
 		book.BookshelfID,
-		time.Now(),
-		time.Now(),
+		book.UserID,
 	))
 	if err != nil {
 		return nil, err
@@ -76,11 +76,11 @@ func CreateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 	return &createdBook, nil
 }
 
-func GetBooks(pool *pgxpool.Pool) ([]models.Book, error) {
+func GetBooks(pool *pgxpool.Pool, userID string) ([]models.Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	rows, err := pool.Query(ctx, `SELECT `+bookColumns+` FROM books`)
+	rows, err := pool.Query(ctx, `SELECT `+bookColumns+` FROM books WHERE user_id = $1`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +101,12 @@ func GetBooks(pool *pgxpool.Pool) ([]models.Book, error) {
 	return books, nil
 }
 
-func GetBookByID(pool *pgxpool.Pool, id string) (*models.Book, error) {
+func GetBookByID(pool *pgxpool.Pool, id string, userID string) (*models.Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	query := `SELECT ` + bookColumns + ` FROM books WHERE id = $1`
-	book, err := scanBook(pool.QueryRow(ctx, query, id))
+	query := `SELECT ` + bookColumns + ` FROM books WHERE id = $1 AND user_id = $2`
+	book, err := scanBook(pool.QueryRow(ctx, query, id, userID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -127,7 +127,7 @@ func UpdateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 			page_count = $5, published_date = $6, publisher = $7, isbn = $8,
 			add_mode = $9, volume_id = $10, bookshelf_id = $11,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $12
+		WHERE id = $12 AND user_id = $13
 		RETURNING ` + bookColumns
 
 	updatedBook, err := scanBook(pool.QueryRow(ctx, query,
@@ -143,6 +143,7 @@ func UpdateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 		book.VolumeID,
 		book.BookshelfID,
 		book.ID,
+		book.UserID,
 	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -154,11 +155,11 @@ func UpdateBook(pool *pgxpool.Pool, book models.Book) (*models.Book, error) {
 	return &updatedBook, nil
 }
 
-func DeleteBook(pool *pgxpool.Pool, id string) (bool, error) {
+func DeleteBook(pool *pgxpool.Pool, id string, userID string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	commandTag, err := pool.Exec(ctx, `DELETE FROM books WHERE id = $1`, id)
+	commandTag, err := pool.Exec(ctx, `DELETE FROM books WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return false, err
 	}

@@ -15,6 +15,7 @@ type Book struct {
 	AddMode       string    `json:"add_mode" db:"add_mode"`
 	VolumeID      *string   `json:"volume_id" db:"volume_id"`
 	BookshelfID   int       `json:"bookshelf_id" db:"bookshelf_id"`
+	UserID        string    `json:"user_id" db:"user_id"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }

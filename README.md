@@ -1,80 +1,102 @@
 # Erastos
 
-Erastos is a personal library project with a Go/Gin REST API, PostgreSQL
-storage, and a Next.js frontend.
+Erastos is a personal library project with a Go REST API, PostgreSQL database,
+and a Next.js frontend. This milestone includes authenticated book management
+in the API and a responsive frontend prototype.
 
-## Current progress
+## Project status
 
-### Backend
+### Backend API
 
-- Book endpoints support listing, retrieving by UUID, creating, replacing,
-  and deleting books using PostgreSQL storage.
-- User registration stores a bcrypt-hashed password. Login checks the password
-  and returns a signed JWT that expires after 72 hours.
-- The API connects to PostgreSQL through a pgx connection pool and checks the
-  connection at startup.
-- Database migrations are managed manually with `migrate`; the server does not
-  apply migrations automatically.
-
-Authentication is not yet enforced on the book endpoints: they are currently
-public, and book records are not scoped to a user. `bookshelf_id` is required
-for a book but is not yet a foreign key because a bookshelves table has not
-been implemented.
+- Book CRUD endpoints use PostgreSQL and UUID book IDs.
+- Each book belongs to a user. All `/books` routes require a valid JWT and
+  operate only on books owned by the authenticated user.
+- User registration stores passwords as bcrypt hashes. Login returns an
+  HS256-signed JWT that expires after 72 hours.
+- `GET /auth/user` returns the authenticated user's profile.
+- CORS allows the configured frontend origins.
+- Database schema changes are managed with manual `migrate` commands.
 
 ### Frontend
 
-The sibling `../erastos-frontend` Next.js app has a library page and book
-details, add/edit book screens, and signup/login screens. The signup, login,
-and book form screens are currently visual designs only; they are not connected
-to the API or authentication flow.
+The Next.js app provides a responsive library UI, sample book covers and
+details, and designed add/edit, sign-up, and login pages. These pages are
+currently a visual prototype: the sample library is local data, and the forms
+do not submit to the API or perform authentication.
 
-## Project structure
+### Current scope
+
+- Books require a positive `bookshelf_id`, but a bookshelves table and
+  bookshelf foreign key have not been implemented.
+- The frontend and backend are not yet integrated into an end-to-end
+  authenticated application.
+
+## Repository layout
 
 ```text
-.
-├── cmd/api/main.go                              # Server setup and route registration
+erastos-backend/
+├── cmd/api/main.go
 ├── internal/
-│   ├── config/config.go                         # .env configuration
-│   ├── database/postgres.go                     # PostgreSQL connection pool
-│   ├── handlers/book_handler.go                 # Book HTTP handlers
-│   ├── handlers/user_handler.go                 # Registration and login handlers
-│   ├── models/book.go                           # Book model
-│   ├── models/user.go                           # User model
-│   ├── repository/book_repository.go             # Book database queries
-│   └── repository/user_repository.go             # User database queries
+│   ├── config/config.go
+│   ├── database/postgres.go
+│   ├── handlers/
+│   │   ├── book_handler.go
+│   │   └── user_handler.go
+│   ├── middleware/auth_middlware.go
+│   ├── models/
+│   │   ├── book.go
+│   │   └── user.go
+│   └── repository/
+│       ├── book_repository.go
+│       └── user_repository.go
 ├── migrations/
-│   ├── 000001_create_books_table.*.sql          # Books table
-│   ├── 000002_create_user_table.*.sql           # Users table
-│   └── 000003_convert_book_ids_to_uuid.*.sql    # Converts old book IDs to UUIDs
-├── .air.toml                                    # Air live-reload configuration
-├── go.mod
-└── go.sum
+│   ├── 000001_create_books_table.*.sql
+│   ├── 000002_create_user_table.*.sql
+│   ├── 000003_convert_book_ids_to_uuid.*.sql
+│   └── 000004_add_userid_to_book_table.*.sql
+└── README.md
+
+erastos-frontend/
+├── app/
+│   ├── [id]/                   # Sample book details and edit design
+│   ├── add-book/               # Add-book form design
+│   ├── login/                  # Login design
+│   ├── signup/                 # Sign-up design
+│   └── page.tsx                # Sample library page
+├── next.config.ts
+└── package.json
 ```
 
 ## Requirements
 
-- The Go version specified in `go.mod`.
-- A reachable PostgreSQL database.
-- The `migrate` CLI to apply or roll back database migrations.
+- Go version specified in `go.mod`
+- PostgreSQL
+- The `migrate` CLI
+- Node.js and npm for the frontend
 
-## Configure the application
+## Backend setup
 
-Create a `.env` file in the project root:
+From `erastos-backend`, create a private `.env` file:
 
 ```dotenv
 DATABASE_URL="postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 PORT=8080
 JWT_SECRET="replace-with-a-long-random-secret"
+CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 ```
 
 Use your database provider's connection URL and a strong, private JWT secret.
-Keep `.env` out of version control; never commit real credentials. The current
-configuration loader expects a `.env` file.
+Do not commit `.env` or real credentials. The application currently expects
+`.env` to exist when it starts.
 
-## Apply database migrations
+`CORS_ORIGINS` is a comma-separated list of exact origins (scheme and port,
+without a path). It defaults to `http://localhost:3000` and
+`http://127.0.0.1:3000`. Add the deployed frontend origin to the list when
+deploying. Restart the API after changing `.env`.
 
-Migrations are not run by the API. From the project root, load the variables
-from `.env` and apply them:
+### Apply migrations
+
+The API does not run migrations at startup. From the backend directory:
 
 ```bash
 set -a
@@ -89,83 +111,116 @@ To roll back the latest migration:
 migrate -path migrations -database "$DATABASE_URL" down 1
 ```
 
-Migration files that have already been applied should not be edited to change
-the database schema. Add a new forward migration instead. Migration `000003`
-assigns UUIDs to existing book rows, so existing numeric book IDs change when
-that migration is applied.
+Migration `000004` adds a non-null `user_id` foreign key to `books`. It can
+only apply directly when the `books` table has no existing rows. If books
+already exist, assign each one to a valid user as part of a migration before
+making `user_id` non-null. Do not edit migrations that have already been
+applied; create a new forward migration for later schema changes.
 
-## Run the API
+Migration `000003` changes existing book IDs to UUIDs, so numeric IDs from an
+older schema do not remain the same.
 
-From the project root:
+### Run the API
 
 ```bash
 go run ./cmd/api
 ```
 
-With `PORT=8080`, the server listens at `http://localhost:8080`. To build:
+With `PORT=8080`, the API listens at `http://localhost:8080`. Build and test:
 
 ```bash
 go build ./cmd/api
+go test ./...
 ```
 
-For live reload, install [Air](https://github.com/air-verse/air) and run
-`air` from the project root.
+The current server binds to `localhost`; change the bind address before
+deploying it where external network access is required.
 
-## API endpoints
+## Frontend setup
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/books` | List books |
-| `GET` | `/books/:id` | Retrieve a book by UUID |
-| `POST` | `/books` | Create a book |
-| `PUT` | `/books/:id` | Replace a book |
-| `DELETE` | `/books/:id` | Delete a book |
-| `POST` | `/auth/register` | Register a user |
-| `POST` | `/auth/login` | Log in and receive a JWT |
-
-### List books
+From `erastos-frontend`:
 
 ```bash
-curl --include http://localhost:8080/books
+npm install
+npm run dev
 ```
 
-### Create a book
+The development app runs at `http://localhost:3000`. To create a production
+build:
 
 ```bash
-curl http://localhost:8080/books \
-    --include \
-    --header "Content-Type: application/json" \
-    --request "POST" \
-    --data '{"title":"The Name of the Wind","authors":["Patrick Rothfuss"],"cover_url":null,"description":null,"page_count":null,"published_date":null,"publisher":null,"isbn":"9780756404741","add_mode":"MANUAL","volume_id":null,"bookshelf_id":1}'
+npm run build
+npm start
 ```
 
-The database generates `id`, `created_at`, and `updated_at`. A create request
-requires a title, at least one author, a positive `bookshelf_id`, and an
-`add_mode` of `MANUAL`, `SCAN`, or `SEARCH`. `PUT` replaces the full book
-record, so include all required fields.
+The Next.js config includes a `/api/books` rewrite to the local backend. Set
+`BOOKS_API_URL` to the backend base URL when using that proxy outside local
+development. The current book forms are design-only and do not submit requests.
 
-### Register a user
+## API reference
 
-Passwords must contain at least eight characters. The stored password is
-bcrypt-hashed and is not included in the response.
+| Method | Path | Authentication | Description |
+|---|---|---|---|
+| `POST` | `/auth/register` | No | Create an account |
+| `POST` | `/auth/login` | No | Verify credentials and return a JWT |
+| `GET` | `/auth/user` | Bearer token | Get the authenticated user's profile |
+| `GET` | `/books` | Bearer token | List the authenticated user's books |
+| `GET` | `/books/:id` | Bearer token | Get one of the user's books |
+| `POST` | `/books` | Bearer token | Create a book for the authenticated user |
+| `PUT` | `/books/:id` | Bearer token | Replace one of the user's books |
+| `DELETE` | `/books/:id` | Bearer token | Delete one of the user's books |
+
+The API derives book ownership from the verified JWT. Do not send `user_id` in
+book create or update requests.
+
+### Register
+
+Registration requires a username, valid email, and password of at least eight
+characters:
 
 ```bash
 curl http://localhost:8080/auth/register \
     --include \
     --header "Content-Type: application/json" \
-    --request "POST" \
+    --request POST \
     --data '{"username":"reader","email":"reader@example.com","password":"replace-with-a-password"}'
 ```
 
 ### Log in
 
-Successful login returns a signed JWT. The current book endpoints do not yet
-require this token.
+Login returns a JSON object containing `token`. Copy that value and set it as
+`TOKEN` in your shell:
 
 ```bash
 curl http://localhost:8080/auth/login \
     --include \
     --header "Content-Type: application/json" \
-    --request "POST" \
+    --request POST \
     --data '{"email":"reader@example.com","password":"replace-with-a-password"}'
+
+TOKEN="paste-the-token-value-here"
+```
+
+Send it on protected requests as `Authorization: Bearer $TOKEN`.
+
+### List books
+
+```bash
+curl http://localhost:8080/books \
+    --include \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+### Create a book
+
+The database generates the book UUID and timestamps. `add_mode` must be
+`MANUAL`, `SCAN`, or `SEARCH`; `bookshelf_id` must be a positive integer.
+
+```bash
+curl http://localhost:8080/books \
+    --include \
+    --header "Content-Type: application/json" \
+    --header "Authorization: Bearer $TOKEN" \
+    --request POST \
+    --data '{"title":"The Name of the Wind","authors":["Patrick Rothfuss"],"cover_url":null,"description":null,"page_count":null,"published_date":null,"publisher":null,"isbn":"9780756404741","add_mode":"MANUAL","volume_id":null,"bookshelf_id":1}'
 ```

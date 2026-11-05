@@ -6,6 +6,7 @@ import (
 
 	"erastos-backend/internal/models"
 	"erastos-backend/internal/repository"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -38,11 +39,17 @@ type UpdateBookRequest struct {
 	BookshelfID   int      `json:"bookshelf_id" binding:"required,gt=0"`
 }
 
+
 func CreateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request CreateBookRequest
 		if err := c.ShouldBindJSON(&request); err != nil {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "invalid book data"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "invalid book data" + err.Error()})
+			return
+		}
+
+		userID, ok := authenticatedUserID(c)
+		if !ok {
 			return
 		}
 
@@ -58,6 +65,7 @@ func CreateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			AddMode:       request.AddMode,
 			VolumeID:      request.VolumeID,
 			BookshelfID:   request.BookshelfID,
+			UserID:        userID,
 		})
 		if err != nil {
 			log.Printf("failed to create book: %v", err)
@@ -71,7 +79,12 @@ func CreateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 func GetBooksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		books, err := repository.GetBooks(pool)
+		userID, ok := authenticatedUserID(c)
+		if !ok {
+			return
+		}
+
+		books, err := repository.GetBooks(pool, userID)
 		if err != nil {
 			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "failed to retrieve books"})
 			return
@@ -82,12 +95,17 @@ func GetBooksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 func GetBookByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, ok := parseBookID(c)
+		id, ok := parseID(c)
 		if !ok {
 			return
 		}
 
-		book, err := repository.GetBookByID(pool, id)
+		userID, ok := authenticatedUserID(c)
+		if !ok {
+			return
+		}
+
+		book, err := repository.GetBookByID(pool, id, userID)
 		if err != nil {
 			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "failed to retrieve book"})
 			return
@@ -102,16 +120,21 @@ func GetBookByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 func UpdateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, ok := parseBookID(c)
+		id, ok := parseID(c)
 		if !ok {
 			return
 		}
 
 		var request UpdateBookRequest
 		if err := c.ShouldBindJSON(&request); err != nil {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "invalid book data"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "invalid book data" + err.Error()})
 			return
 		}
+		userID, ok := authenticatedUserID(c)
+		if !ok {
+			return
+		}
+
 		updatedBook := models.Book{
 			ID:            id,
 			Title:         request.Title,
@@ -125,11 +148,7 @@ func UpdateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			AddMode:       request.AddMode,
 			VolumeID:      request.VolumeID,
 			BookshelfID:   request.BookshelfID,
-		}
-
-		if updatedBook.Title == "" && updatedBook.Authors == nil {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "At least one of the fields must be provided for update"})
-			return
+			UserID:        userID,
 		}
 
 		book, err := repository.UpdateBook(pool, updatedBook)
@@ -150,14 +169,19 @@ func UpdateBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 func DeleteBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, ok := parseBookID(c)
+		id, ok := parseID(c)
 		if !ok {
 			return
 		}
 
-		deleted, err := repository.DeleteBook(pool, id)
+		userID, ok := authenticatedUserID(c)
+		if !ok {
+			return
+		}
+
+		deleted, err := repository.DeleteBook(pool, id, userID)
 		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "failed to delete book"})
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "failed to delete book" + err.Error()})
 			return
 		}
 		if !deleted {
@@ -169,11 +193,21 @@ func DeleteBookHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func parseBookID(c *gin.Context) (string, bool) {
+func parseID(c *gin.Context) (string, bool) {
 	id := c.Param("id")
 	if id == "" {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "book ID is required"})
 		return "", false
 	}
 	return id, true
+}
+
+func authenticatedUserID(c *gin.Context) (string, bool) {
+	value, exists := c.Get("user_id")
+	userID, ok := value.(string)
+	if !exists || !ok || userID == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "authentication required"})
+		return "", false
+	}
+	return userID, true
 }
