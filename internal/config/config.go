@@ -9,6 +9,7 @@ import (
 type Config struct {
 	DatabaseURL string `env:"DATABASE_URL"`
 	Port        string `env:"PORT"`
+	JWTSecret   string `env:"JWT_SECRET"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -21,6 +22,7 @@ func LoadConfig() (*Config, error) {
 	config := &Config{
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		Port:        os.Getenv("PORT"),
+		JWTSecret:   os.Getenv("JWT_SECRET"),
 	}
 
 	return config, nil
