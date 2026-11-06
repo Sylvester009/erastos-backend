@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"erastos-backend/internal/config"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
-	"erastos-backend/internal/config"
 
 	"erastos-backend/internal/models"
 	"erastos-backend/internal/repository"
@@ -28,7 +28,9 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
+	Token    string `json:"token"`
+	Username string `json:"username"`
+	ID string `json:"id"`
 }
 
 func CreateUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
@@ -44,7 +46,6 @@ func CreateUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "username, email, and password are required"})
 			return
 		}
-
 
 		if len(request.Password) < 8 {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "password must be at least 8 characters long"})
@@ -122,7 +123,11 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		c.IndentedJSON(http.StatusOK, LoginResponse{Token: tokenString})
+		c.IndentedJSON(http.StatusOK, LoginResponse{
+			Token:    tokenString,
+			Username: user.Username,
+			ID: user.ID,
+		})
 	}
 }
 
