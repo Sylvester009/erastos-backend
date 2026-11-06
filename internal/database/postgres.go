@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,6 +20,9 @@ func Connect(databaseURL string) (*pgxpool.Pool, error) {
 		log.Printf("Error parsing database URL: %v", err)
 		return nil, err
 	}
+
+	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
 	var pool *pgxpool.Pool
 
 	pool, err = pgxpool.NewWithConfig(ctx, config)
@@ -29,7 +33,7 @@ func Connect(databaseURL string) (*pgxpool.Pool, error) {
 	}
 
 	err = pool.Ping(ctx)
-	
+
 	if err != nil {
 		log.Printf("Error pinging database: %v", err)
 		return nil, err

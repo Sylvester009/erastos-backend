@@ -2,11 +2,16 @@ package main
 
 import (
 	"log"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"time"
 
-	"erastos-backend/internal/api"
 	"erastos-backend/internal/config"
 	"erastos-backend/internal/database"
+	"erastos-backend/internal/handlers"
+	"erastos-backend/internal/middleware"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -20,6 +25,7 @@ func main() {
 	}
 
 	var pool *pgxpool.Pool
+
 	pool, err = database.Connect(cfg.DatabaseURL)
 
 	if err != nil {
@@ -28,7 +34,29 @@ func main() {
 
 	defer pool.Close()
 
-	router := api.BookRouter()
+	var router *gin.Engine = gin.Default()
+
 	router.SetTrustedProxies(nil)
-	router.Run("localhost:" + cfg.Port)
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: cfg.CORSOrigins,
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		MaxAge:       12 * time.Hour,
+	}))
+
+	books := router.Group("/books", middleware.AuthMiddleware(cfg))
+	books.GET("", handlers.GetBooksHandler(pool))
+	books.GET("/:id", handlers.GetBookByIDHandler(pool))
+	books.POST("", handlers.CreateBookHandler(pool))
+	books.PUT("/:id", handlers.UpdateBookHandler(pool))
+	books.DELETE("/:id", handlers.DeleteBookHandler(pool))
+
+	router.POST("/auth/register", handlers.CreateUserHandler(pool))
+	router.POST("/auth/login", handlers.LoginHandler(pool, cfg))
+	router.GET("/auth/user", middleware.AuthMiddleware(cfg), handlers.GetUserHandler(pool))
+
+	if err := router.Run("localhost:" + cfg.Port); err != nil {
+		log.Fatal("Error running server: ", err)
+	}
+
 }
